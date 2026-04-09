@@ -162,8 +162,8 @@ async function initRemoteDb() {
           JSON.stringify(product.images),
           JSON.stringify(product.sizes),
           JSON.stringify(product.colors),
-          product.featured,
-          product.soldOut,
+          product.featured ? 1 : 0,
+          product.soldOut ? 1 : 0,
           product.inventory
         ]
       );
