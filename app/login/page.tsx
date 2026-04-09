@@ -4,7 +4,9 @@ export default function LoginPage() {
       <section className="auth-card">
         <p className="eyebrow">Login</p>
         <h1>Sign in with Auth0</h1>
-        <p className="muted">Authentication is now handled by Auth0 instead of local passwords.</p>
+        <p className="muted">
+          Authentication is handled by Auth0. You can also skip login entirely and place an order as a guest during checkout.
+        </p>
         <a className="button button-primary" href="/auth/login">
           Continue to login
         </a>

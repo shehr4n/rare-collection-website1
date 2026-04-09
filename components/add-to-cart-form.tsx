@@ -11,6 +11,14 @@ export function AddToCartForm({ product }: { product: Product }) {
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
 
+  if (product.soldOut) {
+    return (
+      <div className="purchase-panel">
+        <p className="sold-note">This piece has been marked as sold.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="purchase-panel">
       <label>

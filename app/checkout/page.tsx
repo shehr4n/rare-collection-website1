@@ -6,7 +6,7 @@ export default function CheckoutPage() {
       <section className="page-header">
         <p className="eyebrow">Checkout</p>
         <h1>Complete your order</h1>
-        <p>Choose a payment option and place the order securely.</p>
+        <p>Guest checkout is available. Enter your name, email, phone number, and shipping details to place the order securely.</p>
       </section>
       <CheckoutClient />
     </div>

@@ -15,7 +15,9 @@ export function ProductCard({
         <div
           className="product-image"
           style={{ backgroundImage: `linear-gradient(rgba(20,6,10,0.06), rgba(20,6,10,0.38)), url(${product.image})` }}
-        />
+        >
+          {product.soldOut ? <span className="sold-badge">Sold</span> : null}
+        </div>
       </Link>
       <div className="product-card-body">
         <div className="product-card-meta">

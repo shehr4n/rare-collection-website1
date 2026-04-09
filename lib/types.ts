@@ -9,9 +9,11 @@ export type Product = {
   category: string;
   material: string;
   image: string;
+  images: string[];
   sizes: string[];
   colors: string[];
   featured: boolean;
+  soldOut: boolean;
   inventory: number;
   createdAt: string;
 };
@@ -48,6 +50,7 @@ export type Order = {
   customerEmail: string;
   totalAmount: number;
   paymentMethod: string;
+  paymentReference: string | null;
   status: string;
   shippingAddress: string;
   createdAt: string;

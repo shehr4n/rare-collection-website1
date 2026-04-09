@@ -3,10 +3,12 @@ import path from "path";
 import { slugify } from "@/lib/utils";
 import type { AdminEmailRecord, CartItem, Order, Product } from "@/lib/types";
 
-type ProductRow = Omit<Product, "sizes" | "colors" | "featured"> & {
+type ProductRow = Omit<Product, "sizes" | "colors" | "featured" | "images" | "soldOut"> & {
+  images: string;
   sizes: string;
   colors: string;
   featured: number;
+  soldOut: number;
 };
 
 type OrderRow = {
@@ -16,6 +18,7 @@ type OrderRow = {
   customer_email: string;
   total_amount: number;
   payment_method: string;
+  payment_reference: string | null;
   status: string;
   shipping_address: string;
   items_json: string;
@@ -64,9 +67,11 @@ function initDb() {
       category TEXT NOT NULL,
       material TEXT NOT NULL DEFAULT '',
       image TEXT NOT NULL,
+      images TEXT NOT NULL DEFAULT '[]',
       sizes TEXT NOT NULL,
       colors TEXT NOT NULL,
       featured INTEGER NOT NULL DEFAULT 0,
+      sold_out INTEGER NOT NULL DEFAULT 0,
       inventory INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
@@ -78,6 +83,7 @@ function initDb() {
       customer_email TEXT NOT NULL,
       total_amount REAL NOT NULL,
       payment_method TEXT NOT NULL,
+      payment_reference TEXT,
       status TEXT NOT NULL DEFAULT 'Pending',
       shipping_address TEXT NOT NULL,
       items_json TEXT NOT NULL,
@@ -89,6 +95,35 @@ function initDb() {
   if (!productColumns.some((column) => column.name === "material")) {
     try {
       db.exec("ALTER TABLE products ADD COLUMN material TEXT NOT NULL DEFAULT ''");
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.includes("duplicate column name")) {
+        throw error;
+      }
+    }
+  }
+  if (!productColumns.some((column) => column.name === "images")) {
+    try {
+      db.exec("ALTER TABLE products ADD COLUMN images TEXT NOT NULL DEFAULT '[]'");
+      db.exec("UPDATE products SET images = json_array(image) WHERE images = '[]' OR images = ''");
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.includes("duplicate column name")) {
+        throw error;
+      }
+    }
+  }
+  if (!productColumns.some((column) => column.name === "sold_out")) {
+    try {
+      db.exec("ALTER TABLE products ADD COLUMN sold_out INTEGER NOT NULL DEFAULT 0");
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.includes("duplicate column name")) {
+        throw error;
+      }
+    }
+  }
+  const orderColumns = db.prepare("PRAGMA table_info(orders)").all() as Array<{ name: string }>;
+  if (!orderColumns.some((column) => column.name === "payment_reference")) {
+    try {
+      db.exec("ALTER TABLE orders ADD COLUMN payment_reference TEXT");
     } catch (error) {
       if (!(error instanceof Error) || !error.message.includes("duplicate column name")) {
         throw error;
@@ -113,9 +148,13 @@ function initDb() {
         material: "Satin",
         image:
           "https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=1200&q=80",
+        images: [
+          "https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=1200&q=80"
+        ],
         sizes: ["S", "M", "L"],
         colors: ["Emerald", "Black"],
         featured: 1,
+        soldOut: 0,
         inventory: 12
       },
       {
@@ -127,9 +166,13 @@ function initDb() {
         material: "Linen Blend",
         image:
           "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=1200&q=80",
+        images: [
+          "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=1200&q=80"
+        ],
         sizes: ["XS", "S", "M", "L"],
         colors: ["Rose", "Cream"],
         featured: 1,
+        soldOut: 0,
         inventory: 9
       },
       {
@@ -141,22 +184,27 @@ function initDb() {
         material: "Nida",
         image:
           "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1200&q=80",
+        images: [
+          "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1200&q=80"
+        ],
         sizes: ["M", "L", "XL"],
         colors: ["Midnight", "Taupe"],
         featured: 0,
+        soldOut: 0,
         inventory: 7
       }
     ];
 
     const insert = db.prepare(`
-      INSERT OR IGNORE INTO products (name, slug, description, price, category, material, image, sizes, colors, featured, inventory)
-      VALUES (@name, @slug, @description, @price, @category, @material, @image, @sizes, @colors, @featured, @inventory)
+      INSERT OR IGNORE INTO products (name, slug, description, price, category, material, image, images, sizes, colors, featured, sold_out, inventory)
+      VALUES (@name, @slug, @description, @price, @category, @material, @image, @images, @sizes, @colors, @featured, @soldOut, @inventory)
     `);
 
     for (const product of demoProducts) {
       insert.run({
         ...product,
         slug: slugify(product.name),
+        images: JSON.stringify(product.images),
         sizes: JSON.stringify(product.sizes),
         colors: JSON.stringify(product.colors)
       });
@@ -174,9 +222,11 @@ function mapProduct(row: ProductRow): Product {
     category: row.category,
     material: row.material,
     image: row.image,
+    images: JSON.parse(row.images || "[]").length ? JSON.parse(row.images || "[]") : [row.image],
     sizes: JSON.parse(row.sizes),
     colors: JSON.parse(row.colors),
     featured: Boolean(row.featured),
+    soldOut: Boolean(row.soldOut),
     inventory: row.inventory,
     createdAt: row.createdAt
   };
@@ -194,9 +244,11 @@ export function getProducts(query?: string) {
           category,
           material,
           image,
+          images,
           sizes,
           colors,
           featured,
+          sold_out as soldOut,
           inventory,
           created_at as createdAt
         FROM products
@@ -213,9 +265,11 @@ export function getProducts(query?: string) {
           category,
           material,
           image,
+          images,
           sizes,
           colors,
           featured,
+          sold_out as soldOut,
           inventory,
           created_at as createdAt
         FROM products
@@ -241,9 +295,11 @@ export function getFeaturedProducts() {
         category,
         material,
         image,
+        images,
         sizes,
         colors,
         featured,
+        sold_out as soldOut,
         inventory,
         created_at as createdAt
       FROM products
@@ -268,9 +324,11 @@ export function getProductBySlug(slug: string) {
         category,
         material,
         image,
+        images,
         sizes,
         colors,
         featured,
+        sold_out as soldOut,
         inventory,
         created_at as createdAt
       FROM products
@@ -293,9 +351,11 @@ export function getProductById(id: number) {
         category,
         material,
         image,
+        images,
         sizes,
         colors,
         featured,
+        sold_out as soldOut,
         inventory,
         created_at as createdAt
       FROM products
@@ -313,16 +373,18 @@ export function createProduct(input: {
   category: string;
   material: string;
   image: string;
+  images: string[];
   sizes: string[];
   colors: string[];
   featured: boolean;
+  soldOut: boolean;
   inventory: number;
 }) {
   const slug = slugify(input.name);
   db.prepare(
     `
-      INSERT INTO products (name, slug, description, price, category, material, image, sizes, colors, featured, inventory)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO products (name, slug, description, price, category, material, image, images, sizes, colors, featured, sold_out, inventory)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
   ).run(
     input.name,
@@ -332,9 +394,11 @@ export function createProduct(input: {
     input.category,
     input.material,
     input.image,
+    JSON.stringify(input.images),
     JSON.stringify(input.sizes),
     JSON.stringify(input.colors),
     input.featured ? 1 : 0,
+    input.soldOut ? 1 : 0,
     input.inventory
   );
 }
@@ -348,9 +412,11 @@ export function updateProduct(
     category: string;
     material: string;
     image: string;
+    images: string[];
     sizes: string[];
     colors: string[];
     featured: boolean;
+    soldOut: boolean;
     inventory: number;
   }
 ) {
@@ -358,7 +424,7 @@ export function updateProduct(
   db.prepare(
     `
       UPDATE products
-      SET name = ?, slug = ?, description = ?, price = ?, category = ?, material = ?, image = ?, sizes = ?, colors = ?, featured = ?, inventory = ?
+      SET name = ?, slug = ?, description = ?, price = ?, category = ?, material = ?, image = ?, images = ?, sizes = ?, colors = ?, featured = ?, sold_out = ?, inventory = ?
       WHERE id = ?
     `
   ).run(
@@ -369,18 +435,43 @@ export function updateProduct(
     input.category,
     input.material,
     input.image,
+    JSON.stringify(input.images),
     JSON.stringify(input.sizes),
     JSON.stringify(input.colors),
     input.featured ? 1 : 0,
+    input.soldOut ? 1 : 0,
     input.inventory,
     id
   );
+}
+
+export function setProductSoldOut(id: number, soldOut: boolean) {
+  db.prepare(
+    `
+      UPDATE products
+      SET sold_out = ?, inventory = CASE WHEN ? = 1 THEN 0 WHEN inventory = 0 THEN 1 ELSE inventory END
+      WHERE id = ?
+    `
+  ).run(soldOut ? 1 : 0, soldOut ? 1 : 0, id);
+}
+
+export function setProductsSoldState(items: CartItem[], soldOut: boolean) {
+  const seen = new Set<number>();
+
+  for (const item of items) {
+    if (seen.has(item.productId)) {
+      continue;
+    }
+    seen.add(item.productId);
+    setProductSoldOut(item.productId, soldOut);
+  }
 }
 
 export function createOrder(input: {
   customerName: string;
   customerEmail: string;
   paymentMethod: string;
+  paymentReference?: string | null;
   shippingAddress: string;
   items: CartItem[];
 }) {
@@ -389,8 +480,8 @@ export function createOrder(input: {
 
   db.prepare(
     `
-      INSERT INTO orders (order_number, customer_name, customer_email, total_amount, payment_method, shipping_address, items_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO orders (order_number, customer_name, customer_email, total_amount, payment_method, payment_reference, shipping_address, items_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `
   ).run(
     orderNumber,
@@ -398,11 +489,44 @@ export function createOrder(input: {
     input.customerEmail,
     totalAmount,
     input.paymentMethod,
+    input.paymentReference || null,
     input.shippingAddress,
     JSON.stringify(input.items)
   );
 
+  setProductsSoldState(input.items, true);
+
   return orderNumber;
+}
+
+export function getOrderById(id: number): Order | null {
+  const row = db
+    .prepare(
+      `
+        SELECT *
+        FROM orders
+        WHERE id = ?
+      `
+    )
+    .get(id) as OrderRow | undefined;
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    orderNumber: row.order_number,
+    customerName: row.customer_name,
+    customerEmail: row.customer_email,
+    totalAmount: row.total_amount,
+    paymentMethod: row.payment_method,
+    paymentReference: row.payment_reference,
+    status: row.status,
+    shippingAddress: row.shipping_address,
+    createdAt: row.created_at,
+    items: JSON.parse(row.items_json)
+  };
 }
 
 export function getOrders(): Order[] {
@@ -423,11 +547,58 @@ export function getOrders(): Order[] {
     customerEmail: row.customer_email,
     totalAmount: row.total_amount,
     paymentMethod: row.payment_method,
+    paymentReference: row.payment_reference,
     status: row.status,
     shippingAddress: row.shipping_address,
     createdAt: row.created_at,
     items: JSON.parse(row.items_json)
   }));
+}
+
+export function getOrdersByEmail(email: string): Order[] {
+  const rows = db
+    .prepare(
+      `
+        SELECT *
+        FROM orders
+        WHERE LOWER(customer_email) = ?
+        ORDER BY created_at DESC
+      `
+    )
+    .all(email.toLowerCase()) as OrderRow[];
+
+  return rows.map((row) => ({
+    id: row.id,
+    orderNumber: row.order_number,
+    customerName: row.customer_name,
+    customerEmail: row.customer_email,
+    totalAmount: row.total_amount,
+    paymentMethod: row.payment_method,
+    paymentReference: row.payment_reference,
+    status: row.status,
+    shippingAddress: row.shipping_address,
+    createdAt: row.created_at,
+    items: JSON.parse(row.items_json)
+  }));
+}
+
+export function updateOrderStatus(id: number, status: string) {
+  db.prepare(
+    `
+      UPDATE orders
+      SET status = ?
+      WHERE id = ?
+    `
+  ).run(status, id);
+}
+
+export function deleteOrder(id: number) {
+  db.prepare(
+    `
+      DELETE FROM orders
+      WHERE id = ?
+    `
+  ).run(id);
 }
 
 export function getDashboardStats() {

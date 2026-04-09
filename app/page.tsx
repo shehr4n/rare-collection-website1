@@ -2,8 +2,10 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { ProductCard } from "@/components/product-card";
 import { getProducts } from "@/lib/db";
+import { getCurrentUser } from "@/lib/admin";
 
-export default function HomePage() {
+export default async function HomePage() {
+  const currentUser = await getCurrentUser();
   const allProducts = getProducts();
   const homepageProducts = [...allProducts].sort((a, b) => {
     const aIsDress = a.category.toLowerCase() === "dresses";
@@ -46,9 +48,11 @@ export default function HomePage() {
             <Link href="/shop" className="button button-primary">
               Explore The Collection
             </Link>
-            <a href="/auth/login?returnTo=/admin" className="button button-secondary">
-              Owner Dashboard
-            </a>
+            {currentUser.isAdmin ? (
+              <Link href="/admin" className="button button-secondary">
+                Owner Dashboard
+              </Link>
+            ) : null}
           </div>
         </div>
         <div className="hero-panel">

@@ -1,6 +1,6 @@
-import Image from "next/image";
 import { notFound } from "next/navigation";
 import { AddToCartForm } from "@/components/add-to-cart-form";
+import { ProductGallery } from "@/components/product-gallery";
 import { getProductBySlug } from "@/lib/db";
 import { formatCurrency } from "@/lib/utils";
 
@@ -16,18 +16,13 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     <div className="page-shell">
       <div className="product-detail">
         <div className="product-detail-image-frame">
-          <Image
-            src={product.image}
-            alt={product.name}
-            width={900}
-            height={1200}
-            className="product-detail-image"
-          />
+          <ProductGallery images={product.images} alt={product.name} />
         </div>
         <div className="product-detail-copy">
           <p className="eyebrow">{product.category}</p>
           <h1>{product.name}</h1>
           <p className="price-tag">{formatCurrency(product.price)}</p>
+          {product.soldOut ? <p className="sold-note">Sold out</p> : null}
           <p className="product-detail-material">Material: {product.material}</p>
           <p>{product.description}</p>
           <div className="chips">

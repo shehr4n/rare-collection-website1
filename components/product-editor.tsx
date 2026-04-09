@@ -12,6 +12,7 @@ export function ProductEditor({ action, submitLabel, product }: ProductEditorPro
     <form action={action} className="stack-form editor-form">
       {product ? <input type="hidden" name="id" value={product.id} /> : null}
       {product ? <input type="hidden" name="existingImage" value={product.image} /> : null}
+      {product ? <input type="hidden" name="existingImages" value={JSON.stringify(product.images)} /> : null}
       <input name="name" type="text" placeholder="Product name" defaultValue={product?.name} required />
       <input name="category" type="text" placeholder="Category" defaultValue={product?.category} required />
       <input
@@ -39,13 +40,24 @@ export function ProductEditor({ action, submitLabel, product }: ProductEditorPro
         required
       />
       <label className="file-field">
-        Product photo
-        <input name="image" type="file" accept="image/*" capture="environment" {...(product ? {} : { required: true })} />
+        Product photos
+        <input
+          name="images"
+          type="file"
+          accept="image/*"
+          capture="environment"
+          multiple
+          {...(product ? {} : { required: true })}
+        />
       </label>
-      {product?.image ? (
+      {product?.images?.length ? (
         <div className="existing-image-preview">
-          <span className="muted">Current image</span>
-          <Image src={product.image} alt={product.name} width={320} height={400} />
+          <span className="muted">Current images</span>
+          <div className="existing-image-grid">
+            {product.images.map((image, index) => (
+              <Image key={`${image}-${index}`} src={image} alt={`${product.name} ${index + 1}`} width={220} height={280} />
+            ))}
+          </div>
         </div>
       ) : null}
       <input
@@ -72,6 +84,10 @@ export function ProductEditor({ action, submitLabel, product }: ProductEditorPro
       <label className="checkbox-row">
         <input name="featured" type="checkbox" defaultChecked={product?.featured} />
         Feature this product on the homepage
+      </label>
+      <label className="checkbox-row">
+        <input name="soldOut" type="checkbox" defaultChecked={product?.soldOut} />
+        Mark this product as sold out
       </label>
       <button className="button button-primary" type="submit">
         {submitLabel}

@@ -3,7 +3,16 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { redirect } from "next/navigation";
-import { createOrder, createProduct, updateProduct } from "@/lib/db";
+import {
+  createOrder,
+  createProduct,
+  deleteOrder,
+  getOrderById,
+  setProductsSoldState,
+  setProductSoldOut,
+  updateOrderStatus,
+  updateProduct
+} from "@/lib/db";
 import { getCurrentUser, requireAdmin } from "@/lib/admin";
 import { addAdminEmail } from "@/lib/db";
 import { bangladeshLocations } from "@/lib/bd-locations";
@@ -36,9 +45,32 @@ async function saveUploadedImage(file: FormDataEntryValue | null, fallback?: str
   return `/uploads/${filename}`;
 }
 
+async function saveUploadedImages(files: FormDataEntryValue[], existingImages: string[] = []) {
+  const uploaded: string[] = [];
+
+  for (const file of files) {
+    const saved = await saveUploadedImage(file);
+    if (saved) {
+      uploaded.push(saved);
+    }
+  }
+
+  return uploaded.length ? uploaded : existingImages;
+}
+
+function parseJsonList(value: FormDataEntryValue | null) {
+  try {
+    const parsed = JSON.parse(String(value || "[]"));
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function createProductAction(formData: FormData) {
   await requireAdmin();
-  const image = await saveUploadedImage(formData.get("image"));
+  const images = await saveUploadedImages(formData.getAll("images"));
+  const image = images[0] || "";
 
   createProduct({
     name: String(formData.get("name") || ""),
@@ -47,9 +79,11 @@ export async function createProductAction(formData: FormData) {
     category: String(formData.get("category") || ""),
     material: String(formData.get("material") || ""),
     image,
+    images,
     sizes: parseList(formData.get("sizes")),
     colors: parseList(formData.get("colors")),
     featured: formData.get("featured") === "on",
+    soldOut: formData.get("soldOut") === "on",
     inventory: Number(formData.get("inventory") || 0)
   });
 
@@ -58,10 +92,9 @@ export async function createProductAction(formData: FormData) {
 
 export async function updateProductAction(formData: FormData) {
   await requireAdmin();
-  const image = await saveUploadedImage(
-    formData.get("image"),
-    String(formData.get("existingImage") || "")
-  );
+  const existingImages = parseJsonList(formData.get("existingImages"));
+  const images = await saveUploadedImages(formData.getAll("images"), existingImages);
+  const image = images[0] || String(formData.get("existingImage") || "");
 
   updateProduct(Number(formData.get("id")), {
     name: String(formData.get("name") || ""),
@@ -70,9 +103,11 @@ export async function updateProductAction(formData: FormData) {
     category: String(formData.get("category") || ""),
     material: String(formData.get("material") || ""),
     image,
+    images,
     sizes: parseList(formData.get("sizes")),
     colors: parseList(formData.get("colors")),
     featured: formData.get("featured") === "on",
+    soldOut: formData.get("soldOut") === "on",
     inventory: Number(formData.get("inventory") || 0)
   });
 
@@ -96,6 +131,7 @@ export async function checkoutAction(formData: FormData) {
   const streetAddress = String(formData.get("streetAddress") || "").trim();
   const landmark = String(formData.get("landmark") || "").trim();
   const paymentMethod = String(formData.get("paymentMethod") || "").trim();
+  const paymentReference = String(formData.get("paymentReference") || "").trim();
 
   const divisionData = bangladeshLocations[division as keyof typeof bangladeshLocations];
   const districtData = divisionData?.[district as keyof typeof divisionData];
@@ -114,6 +150,14 @@ export async function checkoutAction(formData: FormData) {
     return { ok: false as const };
   }
 
+  if (!["Cash on delivery", "bKash payment"].includes(paymentMethod)) {
+    return { ok: false as const };
+  }
+
+  if (paymentMethod === "bKash payment" && !paymentReference) {
+    return { ok: false as const };
+  }
+
   const shippingAddress = [
     streetAddress,
     landmark ? `Landmark: ${landmark}` : "",
@@ -129,6 +173,7 @@ export async function checkoutAction(formData: FormData) {
     customerName,
     customerEmail,
     paymentMethod,
+    paymentReference: paymentMethod === "bKash payment" ? paymentReference : null,
     shippingAddress,
     items
   });
@@ -157,4 +202,65 @@ export async function addAdminAction(formData: FormData) {
 
   addAdminEmail(email, currentUser.email);
   redirect("/admin?adminAdded=1");
+}
+
+export async function updateOrderStatusAction(formData: FormData) {
+  await requireAdmin();
+
+  const id = Number(formData.get("id") || 0);
+  const status = String(formData.get("status") || "").trim();
+  const allowedStatuses = ["Pending", "Processing", "Shipped", "Delivered", "Cancelled"];
+
+  if (!id || !allowedStatuses.includes(status)) {
+    redirect("/admin");
+  }
+
+  const order = getOrderById(id);
+  if (!order) {
+    redirect("/admin");
+  }
+
+  updateOrderStatus(id, status);
+
+  if (status === "Cancelled" && order.status !== "Cancelled") {
+    setProductsSoldState(order.items, false);
+  }
+
+  if (status !== "Cancelled" && order.status === "Cancelled") {
+    setProductsSoldState(order.items, true);
+  }
+
+  redirect("/admin?orderUpdated=1");
+}
+
+export async function deleteOrderAction(formData: FormData) {
+  await requireAdmin();
+
+  const id = Number(formData.get("id") || 0);
+  if (!id) {
+    redirect("/admin");
+  }
+
+  const order = getOrderById(id);
+  if (!order) {
+    redirect("/admin");
+  }
+
+  setProductsSoldState(order.items, false);
+  deleteOrder(id);
+  redirect("/admin?orderDeleted=1");
+}
+
+export async function toggleProductSoldAction(formData: FormData) {
+  await requireAdmin();
+
+  const id = Number(formData.get("id") || 0);
+  const soldOut = String(formData.get("soldOut") || "") === "true";
+
+  if (!id) {
+    redirect("/admin");
+  }
+
+  setProductSoldOut(id, soldOut);
+  redirect(`/admin?productSold=${soldOut ? "1" : "0"}`);
 }

@@ -1,5 +1,10 @@
 import Link from "next/link";
-import { addAdminAction } from "@/lib/actions";
+import {
+  addAdminAction,
+  deleteOrderAction,
+  toggleProductSoldAction,
+  updateOrderStatusAction
+} from "@/lib/actions";
 import { ensureDefaultAdmins, requireAdmin } from "@/lib/admin";
 import { getDashboardStats, getOrders, getProducts } from "@/lib/db";
 import { formatCurrency } from "@/lib/utils";
@@ -7,7 +12,13 @@ import { formatCurrency } from "@/lib/utils";
 export default async function AdminPage({
   searchParams
 }: {
-  searchParams: Promise<{ adminAdded?: string; adminError?: string }>;
+  searchParams: Promise<{
+    adminAdded?: string;
+    adminError?: string;
+    orderUpdated?: string;
+    orderDeleted?: string;
+    productSold?: string;
+  }>;
 }) {
   const currentUser = await requireAdmin();
   const params = await searchParams;
@@ -88,6 +99,11 @@ export default async function AdminPage({
             <h2>Inventory manager</h2>
           </div>
         </div>
+        {typeof params.productSold !== "undefined" ? (
+          <p className="success-note">
+            Product {params.productSold === "1" ? "marked as sold." : "marked as available."}
+          </p>
+        ) : null}
         <div className="data-table">
           <div className="table-row table-head">
             <span>Product</span>
@@ -98,14 +114,23 @@ export default async function AdminPage({
           </div>
           {products.map((product) => (
             <div key={product.id} className="table-row">
-              <span>{product.name}</span>
+              <span>
+                {product.name} {product.soldOut ? <span className="status-pill status-cancelled">Sold</span> : null}
+              </span>
               <span>{product.category}</span>
               <span>{formatCurrency(product.price)}</span>
               <span>{product.inventory}</span>
-              <span>
+              <span className="inventory-actions">
                 <Link href={`/admin/products/${product.id}`} className="inline-link">
                   Edit
                 </Link>
+                <form action={toggleProductSoldAction}>
+                  <input type="hidden" name="id" value={product.id} />
+                  <input type="hidden" name="soldOut" value={product.soldOut ? "false" : "true"} />
+                  <button className="text-button" type="submit">
+                    {product.soldOut ? "Mark available" : "Mark sold"}
+                  </button>
+                </form>
               </span>
             </div>
           ))}
@@ -119,6 +144,8 @@ export default async function AdminPage({
             <h2>Recent purchases</h2>
           </div>
         </div>
+        {params.orderUpdated ? <p className="success-note">Order status updated.</p> : null}
+        {params.orderDeleted ? <p className="success-note">Order deleted.</p> : null}
         <div className="orders-grid">
           {orders.length === 0 ? (
             <div className="empty-state">No orders yet.</div>
@@ -127,13 +154,35 @@ export default async function AdminPage({
               <article key={order.id} className="order-card">
                 <div className="order-card-top">
                   <strong>{order.orderNumber}</strong>
-                  <span>{order.status}</span>
+                  <span className={`status-pill status-${order.status.toLowerCase()}`}>{order.status}</span>
                 </div>
                 <p>{order.customerName}</p>
                 <p>{order.customerEmail}</p>
                 <p>{order.paymentMethod}</p>
+                {order.paymentReference ? <p>bKash Txn ID: {order.paymentReference}</p> : null}
                 <p>{formatCurrency(order.totalAmount)}</p>
                 <p className="muted">{order.shippingAddress}</p>
+                <div className="order-admin-actions">
+                  <form action={updateOrderStatusAction} className="order-status-form">
+                    <input type="hidden" name="id" value={order.id} />
+                    <select name="status" defaultValue={order.status}>
+                      <option value="Pending">Pending</option>
+                      <option value="Processing">Processing</option>
+                      <option value="Shipped">Shipped</option>
+                      <option value="Delivered">Delivered</option>
+                      <option value="Cancelled">Cancelled</option>
+                    </select>
+                    <button className="button button-secondary" type="submit">
+                      Update
+                    </button>
+                  </form>
+                  <form action={deleteOrderAction}>
+                    <input type="hidden" name="id" value={order.id} />
+                    <button className="button button-danger" type="submit">
+                      Delete
+                    </button>
+                  </form>
+                </div>
               </article>
             ))
           )}

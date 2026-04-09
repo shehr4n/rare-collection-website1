@@ -13,9 +13,12 @@ export async function SiteHeader() {
       </Link>
       <nav className="site-nav">
         <Link href="/shop">Shop</Link>
-        <Link href="/admin">Admin</Link>
+        {currentUser.isAdmin ? <Link href="/admin">Admin</Link> : null}
         {currentUser.session ? (
-          <a href="/auth/logout">{currentUser.name}</a>
+          <>
+            <Link href="/account/orders">{currentUser.name}</Link>
+            <a href="/auth/logout">Logout</a>
+          </>
         ) : (
           <a href="/auth/login">Login</a>
         )}

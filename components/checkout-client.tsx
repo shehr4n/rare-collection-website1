@@ -11,6 +11,7 @@ export function CheckoutClient() {
   const router = useRouter();
   const { items, clearCart } = useCart();
   const [payload, setPayload] = useState("[]");
+  const [paymentMethod, setPaymentMethod] = useState("Cash on delivery");
   const [division, setDivision] = useState(bangladeshDivisions[0]);
   const [district, setDistrict] = useState(Object.keys(bangladeshLocations[bangladeshDivisions[0]])[0]);
   const [area, setArea] = useState(
@@ -127,18 +128,37 @@ export function CheckoutClient() {
         <fieldset className="payment-options">
           <legend>Payment method</legend>
           <label>
-            <input type="radio" name="paymentMethod" value="Cash on delivery" defaultChecked />
+            <input
+              type="radio"
+              name="paymentMethod"
+              value="Cash on delivery"
+              checked={paymentMethod === "Cash on delivery"}
+              onChange={(event) => setPaymentMethod(event.target.value)}
+            />
             Cash on delivery
           </label>
           <label>
-            <input type="radio" name="paymentMethod" value="bKash payment" />
+            <input
+              type="radio"
+              name="paymentMethod"
+              value="bKash payment"
+              checked={paymentMethod === "bKash payment"}
+              onChange={(event) => setPaymentMethod(event.target.value)}
+            />
             bKash payment
           </label>
-          <label>
-            <input type="radio" name="paymentMethod" value="Bank transfer" />
-            Bank transfer
-          </label>
         </fieldset>
+        {paymentMethod === "bKash payment" ? (
+          <div className="bkash-panel">
+            <p className="bkash-number">Send payment to bKash: 01914554715</p>
+            <input
+              type="text"
+              name="paymentReference"
+              placeholder="Enter your bKash transaction ID"
+              required
+            />
+          </div>
+        ) : null}
         <input type="hidden" name="items" value={payload} />
         <button className="button button-primary" type="submit">
           Place order
@@ -159,7 +179,7 @@ export function CheckoutClient() {
           </div>
           <div className="trust-row">
             <strong>Payment options</strong>
-            <span>COD, bKash, and bank transfer</span>
+            <span>COD and bKash</span>
           </div>
         </div>
         <p className="muted">{items.length} items will be recorded in the owner dashboard.</p>
