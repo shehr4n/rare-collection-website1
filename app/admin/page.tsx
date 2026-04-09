@@ -23,9 +23,9 @@ export default async function AdminPage({
   const currentUser = await requireAdmin();
   const params = await searchParams;
 
-  const stats = getDashboardStats();
-  const products = getProducts();
-  const orders = getOrders();
+  const stats = await getDashboardStats();
+  const products = await getProducts();
+  const orders = await getOrders();
   const adminEmails = await ensureDefaultAdmins();
 
   return (

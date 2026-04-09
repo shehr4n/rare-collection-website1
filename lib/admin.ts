@@ -12,7 +12,7 @@ export async function getCurrentUser() {
     session,
     email,
     name: session?.user.name || session?.user.nickname || email || "Account",
-    isAdmin: email ? isAdminEmail(email) : false,
+    isAdmin: email ? await isAdminEmail(email) : false,
     isSuperAdmin: email ? isSuperAdminEmail(email) : false
   };
 }
@@ -32,6 +32,6 @@ export async function requireAdmin() {
 }
 
 export async function ensureDefaultAdmins() {
-  addAdminEmail(SUPER_ADMIN_EMAIL, SUPER_ADMIN_EMAIL);
-  return getAdminEmails();
+  await addAdminEmail(SUPER_ADMIN_EMAIL, SUPER_ADMIN_EMAIL);
+  return await getAdminEmails();
 }

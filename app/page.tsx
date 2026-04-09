@@ -6,7 +6,7 @@ import { getCurrentUser } from "@/lib/admin";
 
 export default async function HomePage() {
   const currentUser = await getCurrentUser();
-  const allProducts = getProducts();
+  const allProducts = await getProducts();
   const homepageProducts = [...allProducts].sort((a, b) => {
     const aIsDress = a.category.toLowerCase() === "dresses";
     const bIsDress = b.category.toLowerCase() === "dresses";

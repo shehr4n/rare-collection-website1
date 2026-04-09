@@ -8,7 +8,7 @@ export default async function ShopPage({
 }) {
   const params = await searchParams;
   const query = params.q?.trim();
-  const products = getProducts(query).sort((a, b) => {
+  const products = (await getProducts(query)).sort((a, b) => {
     const aIsDress = a.category.toLowerCase() === "dresses";
     const bIsDress = b.category.toLowerCase() === "dresses";
 

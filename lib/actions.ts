@@ -15,6 +15,7 @@ import {
 } from "@/lib/db";
 import { getCurrentUser, requireAdmin } from "@/lib/admin";
 import { addAdminEmail } from "@/lib/db";
+import { put } from "@vercel/blob";
 import { bangladeshLocations } from "@/lib/bd-locations";
 
 function parseList(value: FormDataEntryValue | null) {
@@ -35,13 +36,21 @@ async function saveUploadedImage(file: FormDataEntryValue | null, fallback?: str
     .replace(/(^-|-$)+/g, "");
   const extension = path.extname(safeBaseName) || ".jpg";
   const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${extension}`;
+  const bytes = await file.arrayBuffer();
+
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    const blob = await put(`products/${filename}`, Buffer.from(bytes), {
+      access: "public",
+      addRandomSuffix: false,
+      contentType: file.type || undefined
+    });
+    return blob.url;
+  }
+
   const uploadDir = path.join(process.cwd(), "public", "uploads");
   const uploadPath = path.join(uploadDir, filename);
-
   await mkdir(uploadDir, { recursive: true });
-  const bytes = await file.arrayBuffer();
   await writeFile(uploadPath, Buffer.from(bytes));
-
   return `/uploads/${filename}`;
 }
 
@@ -72,7 +81,7 @@ export async function createProductAction(formData: FormData) {
   const images = await saveUploadedImages(formData.getAll("images"));
   const image = images[0] || "";
 
-  createProduct({
+  await createProduct({
     name: String(formData.get("name") || ""),
     description: String(formData.get("description") || ""),
     price: Number(formData.get("price") || 0),
@@ -96,7 +105,7 @@ export async function updateProductAction(formData: FormData) {
   const images = await saveUploadedImages(formData.getAll("images"), existingImages);
   const image = images[0] || String(formData.get("existingImage") || "");
 
-  updateProduct(Number(formData.get("id")), {
+  await updateProduct(Number(formData.get("id")), {
     name: String(formData.get("name") || ""),
     description: String(formData.get("description") || ""),
     price: Number(formData.get("price") || 0),
@@ -169,7 +178,7 @@ export async function checkoutAction(formData: FormData) {
     .filter(Boolean)
     .join(", ");
 
-  const orderNumber = createOrder({
+  const orderNumber = await createOrder({
     customerName,
     customerEmail,
     paymentMethod,
@@ -200,7 +209,7 @@ export async function addAdminAction(formData: FormData) {
     redirect("/admin?adminError=missing");
   }
 
-  addAdminEmail(email, currentUser.email);
+  await addAdminEmail(email, currentUser.email);
   redirect("/admin?adminAdded=1");
 }
 
@@ -215,19 +224,19 @@ export async function updateOrderStatusAction(formData: FormData) {
     redirect("/admin");
   }
 
-  const order = getOrderById(id);
+  const order = await getOrderById(id);
   if (!order) {
     redirect("/admin");
   }
 
-  updateOrderStatus(id, status);
+  await updateOrderStatus(id, status);
 
   if (status === "Cancelled" && order.status !== "Cancelled") {
-    setProductsSoldState(order.items, false);
+    await setProductsSoldState(order.items, false);
   }
 
   if (status !== "Cancelled" && order.status === "Cancelled") {
-    setProductsSoldState(order.items, true);
+    await setProductsSoldState(order.items, true);
   }
 
   redirect("/admin?orderUpdated=1");
@@ -241,13 +250,13 @@ export async function deleteOrderAction(formData: FormData) {
     redirect("/admin");
   }
 
-  const order = getOrderById(id);
+  const order = await getOrderById(id);
   if (!order) {
     redirect("/admin");
   }
 
-  setProductsSoldState(order.items, false);
-  deleteOrder(id);
+  await setProductsSoldState(order.items, false);
+  await deleteOrder(id);
   redirect("/admin?orderDeleted=1");
 }
 
@@ -261,6 +270,6 @@ export async function toggleProductSoldAction(formData: FormData) {
     redirect("/admin");
   }
 
-  setProductSoldOut(id, soldOut);
+  await setProductSoldOut(id, soldOut);
   redirect(`/admin?productSold=${soldOut ? "1" : "0"}`);
 }

@@ -10,7 +10,7 @@ export default async function AccountOrdersPage() {
     redirect("/auth/login?returnTo=/account/orders");
   }
 
-  const orders = getOrdersByEmail(currentUser.email);
+  const orders = await getOrdersByEmail(currentUser.email);
 
   return (
     <div className="page-shell">

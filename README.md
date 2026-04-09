@@ -6,7 +6,7 @@ Full-stack boutique website for Rare Collection with:
 - cart and checkout flow
 - Auth0-based login
 - owner admin dashboard for products and orders
-- SQLite database with seeded demo data
+- local SQLite development mode and Vercel-compatible production storage
 
 ## Run locally
 
@@ -36,3 +36,12 @@ npm run dev
 
 - `shehran.salam@gmail.com` is seeded as the super-admin email
 - that email can log in through Auth0 and add more admin emails from `/admin`
+
+## Vercel deployment
+
+For production on Vercel, connect:
+
+- a Postgres database integration that provides `POSTGRES_URL`
+- Vercel Blob that provides `BLOB_READ_WRITE_TOKEN`
+
+The app keeps local SQLite and local uploads for development, but switches to Postgres + Blob automatically when those production environment variables are present.
